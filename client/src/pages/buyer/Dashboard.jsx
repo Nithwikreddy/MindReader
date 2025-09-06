@@ -1,0 +1,171 @@
+// client/src/pages/buyer/Dashboard.jsx
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import {
+  getDashboardData,
+  getWishlist,
+  addToWishlist,
+  removeFromWishlist,
+  getUnreadNotificationCount,
+} from "../../services/buyer.services";
+import CarCard from "./components/CarCard";
+import LoadingSpinner from "../components/LoadingSpinner";
+
+const Dashboard = () => {
+  const [featuredAuctions, setFeaturedAuctions] = useState([]);
+  const [featuredRentals, setFeaturedRentals] = useState([]);
+  const [wishlist, setWishlist] = useState({ auctions: [], rentals: [] });
+  
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async (isInitial = false) => {
+      try {
+        if (isInitial) setLoading(true);
+        const [dash, wl, count] = await Promise.all([
+          getDashboardData(),
+          getWishlist(),
+          getUnreadNotificationCount(),
+        ]);
+
+        setFeaturedAuctions(dash.featuredAuctions || []);
+        setFeaturedRentals(dash.featuredRentals || []);
+
+        const auctionIds = (wl.auctions || []).map(a => a._id || a);
+        const rentalIds = (wl.rentals || []).map(r => r._id || r);
+        setWishlist({ auctions: auctionIds, rentals: rentalIds });
+        // recent chats removed from dashboard — chats belong on Chat pages
+      } catch (err) {
+        console.error("Dashboard failed to load:", err);
+      } finally {
+        if (isInitial) setLoading(false);
+      }
+    };
+    
+    // Initial load with loading state
+    loadData(true);
+    
+    // Set up polling for real-time auction/rental updates every 2 seconds
+    const intervalId = setInterval(() => {
+      loadData(false);
+    }, 2000);
+    
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const handleWishlistToggle = async (id, type) => {
+    const key = type === "auction" ? "auctions" : "rentals";
+    const isLiked = wishlist[key].includes(id);
+
+    try {
+      if (isLiked) {
+        await removeFromWishlist(id, type);
+        setWishlist(prev => ({
+          ...prev,
+          [key]: prev[key].filter(x => x !== id)
+        }));
+      } else {
+        await addToWishlist(id, type);
+        setWishlist(prev => ({
+          ...prev,
+          [key]: [...prev[key], id]
+        }));
+      }
+    } catch (err) {
+      console.error("Wishlist toggle failed:", err);
+    }
+  };
+
+  if (loading) return <LoadingSpinner />;
+
+  return (
+    <div className="min-h-screen bg-white">
+      {/* Hero Banner */}
+      <section
+        className="relative h-64 sm:h-80 md:h-96 lg:h-[400px] bg-cover bg-center bg-no-repeat flex flex-col items-center justify-center text-center text-white"
+        style={{ backgroundImage: "url('/images/car1001.png')" }}
+      >
+        <div className="absolute inset-0 bg-black/80" />
+        <div className="relative z-10 px-4 sm:px-6">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-extrabold tracking-tight">
+            <span className="text-orange-500">D</span>rive
+            <span className="text-orange-500">B</span>id
+            <span className="text-orange-500">R</span>ent
+          </h1>
+          <p className="mt-3 sm:mt-4 text-base sm:text-lg md:text-xl lg:text-2xl font-medium text-gray-100">
+            Buy or Rent — Drive Your Dream with{" "}
+            <span className="text-orange-500 font-bold">Ease!</span>
+          </p>
+        </div>
+        <div className="absolute bottom-0 w-full h-1 bg-gradient-to-r from-orange-500 to-transparent" />
+      </section>
+
+      {/* Featured Auctions */}
+      <section className="py-8 sm:py-12 lg:py-16 max-w-7xl mx-auto px-4 sm:px-6">
+        <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-center text-orange-500 mb-8 sm:mb-10 lg:mb-12">Featured Auctions</h2>
+
+        {featuredAuctions.length === 0 ? (
+          <p className="text-center text-xl text-gray-600">No auctions available right now.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {featuredAuctions.map((auction) => (
+              <CarCard
+                key={auction._id}
+                item={auction}
+                type="auction"
+                isInWishlist={wishlist.auctions.includes(auction._id)}
+                onToggleWishlist={() => handleWishlistToggle(auction._id, "auction")}
+              />
+            ))}
+          </div>
+        )}
+
+        <div className="text-center mt-12">
+          <Link
+            to="/buyer/auctions"
+            className="inline-block bg-orange-500 text-white px-10 py-4 rounded-lg text-lg font-medium hover:bg-orange-600 transition"
+          >
+            More Auctions
+          </Link>
+        </div>
+      </section>
+
+      {/* Featured Rentals */}
+      <section className="py-8 sm:py-12 lg:py-16 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-center text-orange-500 mb-8 sm:mb-10 lg:mb-12">Featured Rentals</h2>
+
+          {featuredRentals.length === 0 ? (
+            <p className="text-center text-xl text-gray-600">No rentals available right now.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {featuredRentals.slice(0, 3).map((rental) => (
+                <CarCard
+                  key={rental._id}
+                  item={rental}
+                  type="rental"
+                  returnPath="/buyer"
+                  isInWishlist={wishlist.rentals.includes(rental._id)}
+                  onToggleWishlist={() => handleWishlistToggle(rental._id, "rental")}
+                />
+              ))}
+            </div>
+          )}
+
+          <div className="text-center mt-12">
+            <Link
+              to="/buyer/rentals"
+              className="inline-block bg-orange-500 text-white px-10 py-4 rounded-lg text-lg font-medium hover:bg-orange-600 transition"
+            >
+              More Rentals
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Recent Chats removed: chats live on chat pages only */}
+    </div>
+  );
+};
+
+export default Dashboard;

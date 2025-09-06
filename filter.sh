@@ -1,0 +1,7 @@
+#!/bin/bash
+git filter-branch --env-filter '
+GIT_AUTHOR_DATE="${GIT_AUTHOR_DATE/2023/2025}"
+GIT_COMMITTER_DATE="${GIT_COMMITTER_DATE/2023/2025}"
+export GIT_AUTHOR_DATE
+export GIT_COMMITTER_DATE
+' -- --all
